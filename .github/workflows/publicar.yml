@@ -2,7 +2,7 @@
 # Cadena propia: cada corrida hace una pasada, espera ~14 min, hace otra y se vuelve a lanzar
 # (gh workflow run con GITHUB_TOKEN). El cron de abajo solo la reinicia si alguna vez se corta.
 # La cadena se detiene sola cuando todo está publicado o con "pausado": true en calendario.json.
-# Encender / apagar:  gh workflow enable publicar -R matiasosuna/spiritual-media
+# Encender o apagar:  gh workflow enable publicar -R matiasosuna/spiritual-media
 #                     gh workflow disable publicar -R matiasosuna/spiritual-media
 name: publicar
 on:
