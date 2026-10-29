@@ -1,0 +1,9 @@
+{
+  "nota": "Calendario del publicador de Spiritual Practices 777. 2 reels por día. 'cuando' = hora de Nueva York con su desfase. 'practica' (opcional) = id de la práctica del journal que ese reel desbloquea (laqi, yogi, jsj, box, 478, coh, sigh, count, relax, pink, review). 'publicado' lo completa el workflow: no tocarlo. 'pausado': true frena todo. 'responder': [{id, texto}] responde comentarios de IG en la próxima corrida.",
+  "pausado": false,
+  "zona": "America/New_York",
+  "release": "videos",
+  "canal_youtube": "UC7CCphr7uIpRzyoia6zpxKA",
+  "separacion_minima_horas": 5,
+  "items": []
+}

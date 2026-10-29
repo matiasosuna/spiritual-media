@@ -1,0 +1,71 @@
+# Publica en Instagram + YouTube + TikTok (Buffer) lo que ya venció en calendario.json y anota los links.
+# Cadena propia: cada corrida hace una pasada, espera ~14 min, hace otra y se vuelve a lanzar
+# (gh workflow run con GITHUB_TOKEN). El cron de abajo solo la reinicia si alguna vez se corta.
+# La cadena se detiene sola cuando todo está publicado o con "pausado": true en calendario.json.
+# Encender / apagar:  gh workflow enable publicar -R matiasosuna/spiritual-media
+#                     gh workflow disable publicar -R matiasosuna/spiritual-media
+name: publicar
+on:
+  schedule:
+    - cron: '7,37 * * * *'  # reiniciador; minutos impares (a la hora en punto GitHub demora o saltea crons)
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: publicar
+  cancel-in-progress: false
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SP_PAGE_TOKEN: ${{ secrets.SP_PAGE_TOKEN }}
+      SP_IG_USER_ID: ${{ secrets.SP_IG_USER_ID }}
+      SP_YT_CLIENT_ID: ${{ secrets.SP_YT_CLIENT_ID }}
+      SP_YT_CLIENT_SECRET: ${{ secrets.SP_YT_CLIENT_SECRET }}
+      SP_YT_REFRESH_TOKEN: ${{ secrets.SP_YT_REFRESH_TOKEN }}
+      SP_BUFFER_API_KEY: ${{ secrets.SP_BUFFER_API_KEY }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Pasada 1
+        run: node publicar.mjs
+      - name: Guardar links (pasada 1)
+        if: always()
+        run: |
+          if git diff --quiet calendario.json && { [ ! -f publicados.json ] || git diff --quiet publicados.json; }; then echo "sin cambios"; exit 0; fi
+          git config user.name "spiritual-media"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add calendario.json publicados.json
+          git commit -m "Calendario: publicaciones $(date -u +%Y-%m-%dT%H:%MZ)"
+          for i in 1 2 3; do git pull --rebase -q && git push -q && exit 0; sleep 5; done
+          exit 1
+      - name: Esperar ~14 min
+        if: always()
+        run: sleep 840
+      - name: Pasada 2
+        if: always()
+        run: git pull --rebase -q; node publicar.mjs
+      - name: Guardar links (pasada 2)
+        if: always()
+        run: |
+          if git diff --quiet calendario.json && { [ ! -f publicados.json ] || git diff --quiet publicados.json; }; then echo "sin cambios"; exit 0; fi
+          git config user.name "spiritual-media"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add calendario.json publicados.json
+          git commit -m "Calendario: publicaciones $(date -u +%Y-%m-%dT%H:%MZ)"
+          for i in 1 2 3; do git pull --rebase -q && git push -q && exit 0; sleep 5; done
+          exit 1
+      - name: ¿Sigue la cadena?
+        id: cadena
+        if: always()
+        run: git pull --rebase -q || true; node publicar.mjs --seguir
+      - name: Lanzar la próxima corrida
+        if: always() && steps.cadena.outputs.seguir == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run publicar -R "$GITHUB_REPOSITORY" --ref main
