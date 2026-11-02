@@ -24,7 +24,8 @@ const SECRETOS = ['SP_PAGE_TOKEN', 'SP_YT_CLIENT_SECRET', 'SP_YT_REFRESH_TOKEN',
 export const PLATAFORMAS = ['instagram', 'youtube', 'tiktok'];
 // Buffer: cuenta propia de Spiritual Practices (osuna.devs). El canal de TikTok se completa al conectarlo.
 export const BUFFER_ORG = '6ae3c1bfc3aa910dff512c69', BUFFER_TIKTOK = '';
-const falta = (i) => PLATAFORMAS.some((p) => !i[p]?.publicado);
+// TikTok cuenta recién cuando esté conectado en Buffer (si no, la cadena no pararía nunca)
+const falta = (i) => PLATAFORMAS.filter((p) => p !== 'tiktok' || BUFFER_TIKTOK).some((p) => !i[p]?.publicado);
 
 export const assetUrl = (archivo, repo = REPO) => `https://github.com/${repo}/releases/download/${RELEASE}/${archivo}`;
 export const primeraLinea = (t) => String(t ?? '').split('\n')[0].trim();
@@ -54,6 +55,7 @@ export const buscarDuplicadoIG = (media, caption) => media.find((m) => primeraLi
 export const buscarDuplicadoYT = (videos, titulo) => videos.find((v) => v.titulo.trim() === titulo.trim()) ?? null;
 export const parametrosContenedor = (item, repo = REPO) => ({
   media_type: 'REELS', video_url: assetUrl(item.archivo, repo), caption: item.instagram.caption, share_to_feed: 'true',
+  ...(item.instagram.tapa ? { cover_url: assetUrl(item.instagram.tapa, repo) } : {}),
 });
 
 /** El video tiene que estar en el release y responder (GitHub redirige a su CDN; Instagram sigue la redirección). */

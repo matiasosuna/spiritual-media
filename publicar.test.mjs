@@ -38,3 +38,17 @@ test('tiktok: usa tiktok-<id>.mp4 salvo que el ítem diga otro archivo', () => {
   assert.equal(assetTikTok({ id: 'x', tiktok: {} }), 'tiktok-x.mp4');
   assert.equal(assetTikTok({ id: 'x', tiktok: { archivo: 'x.mp4' } }), 'x.mp4');
 });
+
+test('la tapa del reel va como cover_url (y si no hay, no se manda)', async () => {
+  const { parametrosContenedor } = await import('./publicar.mjs');
+  const base = { archivo: 'yogi.mp4', instagram: { caption: 'x' } };
+  assert.equal(parametrosContenedor(base, 'a/b').cover_url, undefined);
+  assert.equal(parametrosContenedor({ ...base, instagram: { caption: 'x', tapa: 'yogi-tapa.jpg' } }, 'a/b').cover_url, 'https://github.com/a/b/releases/download/videos/yogi-tapa.jpg');
+});
+
+test('la cadena termina aunque TikTok no esté conectado', async () => {
+  const { seguirCadena } = await import('./publicar.mjs');
+  const pub = { publicado: { fecha: '2026-11-02' } };
+  assert.equal(seguirCadena({ items: [{ instagram: pub, youtube: pub, tiktok: {} }] }), false);
+  assert.equal(seguirCadena({ items: [{ instagram: {}, youtube: pub, tiktok: {} }] }), true);
+});
