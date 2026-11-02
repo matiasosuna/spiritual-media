@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { siguiente, seguirCadena, anotarPractica, buscarDuplicadoIG, assetTikTok } from './publicar.mjs';
+import { siguiente, seguirCadena, anotarPractica, buscarDuplicadoIG, assetTikTok, enZona, proximoHorario, sumarCola } from './publicar.mjs';
 
 const ahora = Date.parse('2026-11-02T14:00:00Z');
 const it = (id, cuando, extra = {}) => ({ id, cuando, archivo: `${id}.mp4`, instagram: { caption: id }, youtube: { titulo: id }, tiktok: {}, ...extra });
@@ -51,4 +51,23 @@ test('la cadena termina aunque TikTok no esté conectado', async () => {
   const pub = { publicado: { fecha: '2026-11-02' } };
   assert.equal(seguirCadena({ items: [{ instagram: pub, youtube: pub, tiktok: {} }] }), false);
   assert.equal(seguirCadena({ items: [{ instagram: {}, youtube: pub, tiktok: {} }] }), true);
+});
+
+test('estudio: hora de Nueva York con su desfase (invierno y verano)', () => {
+  assert.equal(enZona('2026-11-03', '09:00'), '2026-11-03T09:00:00-05:00');
+  assert.equal(enZona('2026-07-03', '19:00'), '2026-07-03T19:00:00-04:00');
+});
+test('estudio: los aprobados entran en los próximos horarios libres, sin repetir', () => {
+  const cal = { zona: 'America/New_York', horarios: ['09:00', '19:00'], items: [it('yogi', '2026-11-02T09:00:00-05:00')] };
+  const cola = [{ id: 'jsj', titulo: 'JSJ', video: 'jsj.mp4', tapa: 'jsj-tapa.jpg', caption: 'Hola\n#x' }, { id: 'box', titulo: 'Box', video: 'box.mp4' }, { id: 'sin', titulo: 'x' }];
+  const nuevos = sumarCola(cal, cola, ahora);
+  assert.deepEqual(nuevos.map((i) => [i.id, i.cuando]), [['jsj', '2026-11-02T19:00:00-05:00'], ['box', '2026-11-03T09:00:00-05:00']]);
+  assert.deepEqual(nuevos[0].instagram, { caption: 'Hola\n#x', tapa: 'jsj-tapa.jpg' });
+  assert.equal(nuevos[0].practica, 'jsj');
+  assert.equal(nuevos[1].youtube.titulo, 'Box');
+  assert.equal(sumarCola(cal, cola, ahora).length, 0);
+});
+test('estudio: nunca programa en el pasado', () => {
+  const cal = { items: [it('a', '2026-10-01T09:00:00-05:00')] };
+  assert.equal(proximoHorario(cal, Date.parse('2026-11-02T15:00:00Z')), '2026-11-02T19:00:00-05:00');
 });

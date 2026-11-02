@@ -7,6 +7,7 @@
 //   node publicar.mjs                      → publica lo vencido (1 por plataforma por corrida)
 //   node publicar.mjs --dry-run            → próximo pendiente: URL del video, HEAD, parámetros; no publica
 //   node publicar.mjs --contenedor-prueba  → crea el contenedor de IG del próximo pendiente y espera FINISHED; NO publica
+//   Antes de publicar suma al calendario lo aprobado en el estudio de la web (COLA), en el próximo horario libre.
 //   node publicar.mjs --seguir             → ¿la cadena del workflow sigue? (no si todo está publicado o "pausado": true)
 // Secretos (variables de entorno): SP_PAGE_TOKEN, SP_IG_USER_ID, SP_YT_CLIENT_ID, SP_YT_CLIENT_SECRET, SP_YT_REFRESH_TOKEN,
 // SP_BUFFER_API_KEY
@@ -238,6 +239,56 @@ export function anotarPractica(pub, item, res) {
 }
 const leerPub = () => (existsSync(PUB) ? JSON.parse(readFileSync(PUB, 'utf8')) : {});
 
+// ── cola del estudio: los reels que Matías aprobó en spiritualpractices777.pages.dev/estudio entran solos al calendario
+export const COLA = 'https://spiritualpractices777.pages.dev/api/estudio/cola';
+const diaEn = (zona, t) => new Intl.DateTimeFormat('en-CA', { timeZone: zona, year: 'numeric', month: '2-digit', day: '2-digit' }).format(t);
+const horaEn = (zona, t) => new Intl.DateTimeFormat('en-GB', { timeZone: zona, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(t);
+/** "2026-11-03" + "09:00" en Nueva York → "2026-11-03T09:00:00-05:00" (o -04:00 en horario de verano). */
+export function enZona(dia, hhmm, zona = 'America/New_York') {
+  for (const off of ['-05:00', '-04:00', '+00:00']) {
+    const s = `${dia}T${hhmm}:00${off}`;
+    if (horaEn(zona, new Date(s)) === hhmm) return s;
+  }
+  return `${dia}T${hhmm}:00Z`;
+}
+/** Próximo horario libre (cal.horarios en cal.zona) después del último programado y de ahora + 30 min. */
+export function proximoHorario(cal, ahora = Date.now()) {
+  const zona = cal.zona || 'America/New_York', horarios = cal.horarios || ['09:00', '19:00'];
+  const ocupados = cal.items.map((i) => Date.parse(i.cuando));
+  const desde = Math.max(ahora + 30 * 60e3, ...ocupados.map((t) => t + 60e3));
+  let dia = diaEn(zona, desde);
+  for (let n = 0; n < 400; n++) {
+    for (const h of horarios) { const s = enZona(dia, h, zona); if (Date.parse(s) >= desde) return s; }
+    dia = new Date(Date.parse(`${dia}T12:00:00Z`) + 86400e3).toISOString().slice(0, 10);
+  }
+  throw new Error('sin horario libre');
+}
+/** Suma al calendario los aprobados que todavía no están (por id), cada uno en el próximo horario libre. */
+export function sumarCola(cal, cola, ahora = Date.now()) {
+  const nuevos = [];
+  for (const r of cola) {
+    if (!r.id || !r.video || cal.items.some((i) => i.id === r.id)) continue;
+    const item = {
+      id: r.id, cuando: proximoHorario(cal, ahora), archivo: r.video, practica: r.id,
+      instagram: { caption: r.caption || r.titulo, ...(r.tapa ? { tapa: r.tapa } : {}) },
+      youtube: { titulo: r.yt_titulo || r.titulo, descripcion: r.yt_desc || r.caption || '', etiquetas: [] },
+      tiktok: {},
+    };
+    cal.items.push(item);
+    nuevos.push(item);
+  }
+  return nuevos;
+}
+async function traerCola(cal, guardar) {
+  try {
+    const r = await fetch(COLA);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const nuevos = sumarCola(cal, (await r.json()).items ?? []);
+    for (const i of nuevos) log(`estudio: ${i.id} entra al calendario (${i.cuando})`);
+    if (nuevos.length) guardar();
+  } catch (e) { log(`⚠️ cola del estudio: ${e.message}`); }
+}
+
 // ── corridas
 function cargar() {
   const cal = JSON.parse(readFileSync(CAL, 'utf8'));
@@ -284,6 +335,7 @@ async function contenedorPrueba() {
 async function publicar() {
   const { cal, guardar } = cargar();
   if (cal.pausado) return log('calendario en pausa ("pausado": true): no se publica nada');
+  await traerCola(cal, guardar);
   let fallas = 0;
   for (const p of PLATAFORMAS) {
     const { item, motivo } = siguiente(cal, p);
